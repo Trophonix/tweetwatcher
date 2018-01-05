@@ -39,7 +39,8 @@ function setupStream() {
                     },
                     description: event.text,
                     url: 'https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str,
-                    fields: []
+                    fields: [],
+                    timestamp: new Date()
                 };
                 if (event.in_reply_to_status_id_str) {
                     twitter.get('statuses/show', {id: event.in_reply_to_status_id_str}, (error, tweet, res) => {
