@@ -23,6 +23,7 @@
   "homepage": "https://github.com/trophonix/tweetwatcher#readme",
   "dependencies": {
     "discord.js": "^11.2.1",
+    "mongoose": "^5.0.0-rc2",
     "twit": "^2.2.9"
   }
 }

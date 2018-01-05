@@ -7,8 +7,6 @@ Array.prototype.removeIf = function(condition) {
     }
 };
 
-const onExit = require('./exit');
-
 const fs = require('fs');
 
 const Twitter = require('twit');
@@ -18,14 +16,6 @@ const config = require('./config.json');
 
 const twitter = new Twitter(config.twitter);
 const watching = [];
-
-let data = fs.readFileSync('./data.json', 'utf8');
-if (data) {
-    let json = JSON.parse(data);
-    if (json.watching) {
-        json.watching.forEach(watcher => watching.push(watcher));
-    }
-}
 
 function sendTweet(event, embed) {
     watching.filter(watcher => watcher.userID === event.user.id).forEach(watcher => {
@@ -71,6 +61,10 @@ function setupStream() {
     }
 }
 
+const Mongo = require('mongoose');
+require('./models');
+const Watcher = Mongo.model('watcher');
+
 discord.on('ready', () => {
     console.log('Happy birthday!');
 });
@@ -89,12 +83,27 @@ discord.on('message', event => {
                     if (name.startsWith('@')) name = name.replace('@', '');
                     twitter.get('users/show', {screen_name: name}, (error, account, res) => {
                         if (!error && account) {
-                            watching.push({
-                                userID: account.id_str,
-                                channelID: event.channel.id
+                            let data = {
+                                twitter_id: account.id_str,
+                                channel_id: event.channel.id,
+                                guild_id: event.guild.id
+                            };
+                            Watcher.findOne(data, (err, watcher) => {
+                                if (watcher) {
+                                    event.reply('I\'m already watching ' + account.name + ' in ' + event.channel);
+                                } else {
+                                    let watcher = new Watcher(data);
+                                    watcher.save((err) => {
+                                        if (err) {
+                                            event.reply('Something went wrong!');
+                                            console.error(err);
+                                        } else {
+                                            setupStream();
+                                            event.reply('I am now watching ' + account.name + ' in ' + event.channel);
+                                        }
+                                    });
+                                }
                             });
-                            setupStream();
-                            event.reply('I am now watching ' + account.name + ' in ' + event.channel);
                         } else {
                             event.reply('User not found: @' + name);
                         }
@@ -109,9 +118,15 @@ discord.on('message', event => {
                     if (name.startsWith('@')) name = name.replace('@', '');
                     twitter.get('users/show', {screen_name: name}, (error, account, res) => {
                         if (!error && account) {
-                            watching.removeIf(watcher => watcher.userID === account.id_str && watcher.channelID === event.channel.id);
-                            setupStream();
-                            event.reply('I am no longer watching ' + account.name + ' in ' + event.channel);
+                            Watcher.remove({ twitter_id: account.id_str, channel_id: event.channel.id }, (err) => {
+                                if (err) {
+                                    event.reply('Something went wrong!');
+                                    console.error(err);
+                                    return;
+                                }
+                                setupStream();
+                                event.reply('I am no longer watching ' + account.name + ' in ' + event.channel);
+                            });
                         } else {
                             event.reply('User not found: @' + name);
                         }
@@ -121,19 +136,29 @@ discord.on('message', event => {
                 }
                 break;
             case 'list':
-                let query = watching
-                    .filter(watcher => watcher.channelID === event.channel.id)
-                    .map(watcher => watcher.userID);
-                if (query.length == 0) {
-                    event.reply('No accounts are being watched in this channel! Use `' + config.prefix + 'help` for more information.');
-                    return;
-                }
-                if (query.length > 100) {
-                    query.length = 100;
-                }
-                twitter.post('users/lookup', { user_id: query }, (error, accounts, res) => {
-                    event.reply('Accounts being watched in ' + event.channel + ':\n' +
-                        accounts.map(account => '`@' + account.screen_name + '`').join(', '));
+                mongo.find({ channel_id: event.channel.id }, (err, watchers) => {
+                    if (err) {
+                        event.reply('Something went wrong!');
+                        console.error(err);
+                        return;
+                    }
+                    let query = watchers.map(watcher => watcher.twitter_id);
+                    if (query.length == 0) {
+                        event.reply('No accounts are being watched in this channel! Use `' + config.prefix + 'help` for more information.');
+                        return;
+                    }
+                    if (query.length > 100) {
+                        query.length = 100;
+                    }
+                    twitter.post('users/lookup', { user_id: query }, (error, accounts, res) => {
+                        if (error || !accounts) {
+                            event.reply('Something went wrong!');
+                            console.error(error);
+                            return;
+                        }
+                        event.reply('Accounts being watched in ' + event.channel + ':\n' +
+                            accounts.map(account => '`@' + account.screen_name + '`').join(', '));
+                    });
                 });
                 break;
             case 'help':
@@ -174,12 +199,5 @@ discord.on('message', event => {
         }
     }
 });
-
-function save() {
-    fs.writeFileSync('data.json', JSON.stringify({watching: watching}), 'utf8');
-}
-
-onExit(save);
-setInterval(save, 1000 * 60 * 5);
 
 discord.login(config.token);

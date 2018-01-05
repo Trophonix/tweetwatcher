@@ -3,6 +3,7 @@
     "colors": {
         "main": 44269
     },
+    "mongo_url": "mongodb://root:password@localhost:27017",
     "twitter": {
         "consumer_key": "xxx",
         "consumer_secret": "xxx",
