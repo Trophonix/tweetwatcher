@@ -1,0 +1,28 @@
+{
+  "name": "tweetwatcher",
+  "version": "1.0.0",
+  "description": "TweetWatcher discord bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/trophonix/tweetwatcher.git"
+  },
+  "keywords": [
+    "discord",
+    "twitter",
+    "bot"
+  ],
+  "author": "Trophonix",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/trophonix/tweetwatcher/issues"
+  },
+  "homepage": "https://github.com/trophonix/tweetwatcher#readme",
+  "dependencies": {
+    "discord.js": "^11.2.1",
+    "twit": "^2.2.9"
+  }
+}
