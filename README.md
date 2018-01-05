@@ -2,10 +2,6 @@
 
 TweetWatcher is a Discord bot for watching twitter accounts and displaying their tweets in Discord channels.
 
-## TODO
-
-- Switch from JSON storage to a Mongo database
-
 ## Setup Instructions
 
 1. Rename config.example.json to config.json
