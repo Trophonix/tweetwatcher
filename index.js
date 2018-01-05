@@ -1,13 +1,4 @@
-Array.prototype.removeIf = function(condition) {
-    var i = this.length;
-    while (i--) {
-        if (condition(this[i], i)) {
-            this.splice(i, 1);
-        }
-    }
-};
-
-const fs = require('fs');
+const async = require('async');
 
 const Twitter = require('twit');
 const Discord = require('discord.js');
@@ -15,55 +6,58 @@ const Discord = require('discord.js');
 const config = require('./config.json');
 
 const twitter = new Twitter(config.twitter);
-const watching = [];
-
-function sendTweet(event, embed) {
-    watching.filter(watcher => watcher.userID === event.user.id).forEach(watcher => {
-        discord.channels.filter(channel => channel.id === watcher.channelID).forEach(channel => {
-            channel.send({embed: embed}).catch(console.error);
-        });
-    });
-}
 
 const discord = new Discord.Client();
-
-function setupStream() {
-    if (watching.length > 0) {
-        let stream = twitter.stream('statuses/filter', {
-            follow: watching.map(watcher => watcher.userID)
-        });
-        stream.on('error', console.error);
-        stream.on('tweet', event => {
-            let embed = {
-                color: config.colors.main,
-                author: {
-                    name: event.user.name,
-                    icon_url: event.user.profile_image_url
-                },
-                description: event.text,
-                url: 'https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str,
-                fields: []
-            };
-            if (event.in_reply_to_status_id_str) {
-                twitter.get('statuses/show', {id: event.in_reply_to_status_id_str}, (error, tweet, res) => {
-                    if (!error && tweet) {
-                        embed.fields.push({
-                            name: '@' + tweet.user.screen_name,
-                            value: tweet.text
-                        });
-                    }
-                    sendTweet(event, embed);
-                });
-            } else {
-                sendTweet(event, embed);
-            }
-        });
-    }
-}
 
 const Mongo = require('mongoose');
 require('./models');
 const Watcher = Mongo.model('watcher');
+
+function sendTweet(event, embed) {
+    Watcher.find({ twitter_id: event.user.id }, (err, watching) => {
+        async.each(watching, (watcher, next) => {
+            discord.channels.filter(channel => channel.id === watcher.channel_id).forEach(channel => {
+                channel.send({embed: embed}).catch(console.error);
+            });
+        }, console.error);
+    });
+}
+
+function setupStream() {
+    Watcher.find({}, (err, watching) => {
+        if (watching && watching.length > 0) {
+            let stream = twitter.stream('statuses/filter', {
+                follow: watching.map(watcher => watcher.twitter_id).filter((twitterId, i, self) => self.indexOf(twitterId) === i)
+            });
+            stream.on('error', console.error);
+            stream.on('tweet', event => {
+                let embed = {
+                    color: config.colors.main,
+                    author: {
+                        name: event.user.name,
+                        icon_url: event.user.profile_image_url
+                    },
+                    description: event.text,
+                    url: 'https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str,
+                    fields: []
+                };
+                if (event.in_reply_to_status_id_str) {
+                    twitter.get('statuses/show', {id: event.in_reply_to_status_id_str}, (error, tweet, res) => {
+                        if (!error && tweet) {
+                            embed.fields.push({
+                                name: '@' + tweet.user.screen_name,
+                                value: tweet.text
+                            });
+                        }
+                        sendTweet(event, embed);
+                    });
+                } else {
+                    sendTweet(event, embed);
+                }
+            });
+        }
+    });
+}
 
 discord.on('ready', () => {
     console.log('Happy birthday!');
@@ -88,7 +82,9 @@ discord.on('message', event => {
                                 channel_id: event.channel.id,
                                 guild_id: event.guild.id
                             };
+                            console.log('debug 1');
                             Watcher.findOne(data, (err, watcher) => {
+                                console.log('debug 2');
                                 if (watcher) {
                                     event.reply('I\'m already watching ' + account.name + ' in ' + event.channel);
                                 } else {
@@ -136,7 +132,7 @@ discord.on('message', event => {
                 }
                 break;
             case 'list':
-                mongo.find({ channel_id: event.channel.id }, (err, watchers) => {
+                Watcher.find({ channel_id: event.channel.id }, (err, watchers) => {
                     if (err) {
                         event.reply('Something went wrong!');
                         console.error(err);
@@ -200,4 +196,5 @@ discord.on('message', event => {
     }
 });
 
+Mongo.connect(config.mongo_url).catch(console.error);
 discord.login(config.token);
