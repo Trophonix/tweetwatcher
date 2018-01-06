@@ -10,7 +10,7 @@ TweetWatcher is a Discord bot for watching twitter accounts and displaying their
 
 ## Donate
 
-Paypal: [paypal.me/trophonix](https://paypal.me/trophonix)
+Paypal: [paypal.me/trophonix](https://paypal.me/trophonix/1)
 
 Ko-Fi: [ko-fi.com/trophonix](https://ko-fi.com/trophonix)
 
