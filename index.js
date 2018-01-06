@@ -1,5 +1,7 @@
 const async = require('async');
 
+const onExit = require('./exit');
+
 const Twitter = require('twit');
 const Discord = require('discord.js');
 
@@ -14,20 +16,25 @@ require('./models');
 const Watcher = Mongo.model('watcher');
 
 function sendTweet(event, embed) {
-    Watcher.find({ twitter_id: event.user.id }, (err, watching) => {
+    Watcher.find({ twitter_id: event.user.id_str }, (err, watching) => {
         async.each(watching, (watcher, next) => {
             discord.channels.filter(channel => channel.id === watcher.channel_id).forEach(channel => {
                 channel.send({embed: embed}).catch(console.error);
+                next();
             });
         }, console.error);
-    });
+    }); 
 }
+
+var stream;
 
 function setupStream() {
     Watcher.find({}, (err, watching) => {
         if (watching && watching.length > 0) {
-            let stream = twitter.stream('statuses/filter', {
-                follow: watching.map(watcher => watcher.twitter_id).filter((twitterId, i, self) => self.indexOf(twitterId) === i)
+            watching = watching.map(watcher => watcher.twitter_id).filter((twitterId, index, self) => self.indexOf(twitterId) == index);
+            if (stream) stream.stop();
+            stream = twitter.stream('statuses/filter', {
+                follow: watching.join(',')
             });
             stream.on('error', console.error);
             stream.on('tweet', event => {
@@ -83,9 +90,7 @@ discord.on('message', event => {
                                 channel_id: event.channel.id,
                                 guild_id: event.guild.id
                             };
-                            console.log('debug 1');
                             Watcher.findOne(data, (err, watcher) => {
-                                console.log('debug 2');
                                 if (watcher) {
                                     event.reply('I\'m already watching ' + account.name + ' in ' + event.channel);
                                 } else {
@@ -96,7 +101,7 @@ discord.on('message', event => {
                                             console.error(err);
                                         } else {
                                             setupStream();
-                                            event.reply('I am now watching ' + account.name + ' in ' + event.channel);
+                                            event.reply('I am now watching **' + account.name + ' (@' + account.screen_name + ')** in ' + event.channel);
                                         }
                                     });
                                 }
@@ -122,7 +127,7 @@ discord.on('message', event => {
                                     return;
                                 }
                                 setupStream();
-                                event.reply('I am no longer watching ' + account.name + ' in ' + event.channel);
+                                event.reply('I am no longer watching **' + account.name + ' (@' + account.screen_name + ')** in ' + event.channel);
                             });
                         } else {
                             event.reply('User not found: @' + name);
@@ -197,5 +202,11 @@ discord.on('message', event => {
     }
 });
 
-Mongo.connect(config.mongo_url).catch(console.error);
+onExit(() => {
+    if (stream) stream.stop();
+});
+
+Mongo.connect(config.mongo_url).then(() => {
+    setupStream();
+}).catch(console.error);
 discord.login(config.token);
