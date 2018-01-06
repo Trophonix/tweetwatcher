@@ -44,7 +44,7 @@ function setupStream() {
                         name: event.user.name,
                         icon_url: event.user.profile_image_url
                     },
-                    description: event.text,
+                    description: event.text + '\n ',
                     url: 'https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str,
                     fields: [],
                     timestamp: new Date()
@@ -56,6 +56,7 @@ function setupStream() {
                                 name: '@' + tweet.user.screen_name,
                                 value: tweet.text
                             });
+                            embed.description = embed.description.replace('@' + tweet.user.screen_name + ' ', '');
                         }
                         sendTweet(event, embed);
                     });
