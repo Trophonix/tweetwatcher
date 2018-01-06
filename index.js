@@ -1,7 +1,5 @@
 const async = require('async');
 
-const onExit = require('./exit');
-
 const Twitter = require('twit');
 const Discord = require('discord.js');
 
