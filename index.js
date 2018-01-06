@@ -38,25 +38,23 @@ function setupStream() {
             });
             stream.on('error', console.error);
             stream.on('tweet', event => {
-                let embed = {
-                    color: config.colors.main,
-                    author: {
-                        name: event.user.name,
-                        icon_url: event.user.profile_image_url
-                    },
-                    description: event.text + '\n ',
-                    url: 'https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str,
-                    fields: [],
-                    timestamp: new Date()
-                };
-                if (event.in_reply_to_status_id_str) {
+                let embed = new Discord.RichEmbed()
+                    .setColor(config.colors.main)
+                    .setAuthor(event.user.name, event.user.profile_image_url)
+                    .setDescription(event.text)
+                    .setURL('https://twitter.com/' + event.user.screen_name + '/status/' + event.id_str)
+                    .setTimestamp();
+                if (event.entities && event.entities.media && event.entities.media.length > 0) {
+                    embed.setImage(event.entities.media[0].media_url);
+                    sendTweet(event, embed);
+                } else if (event.in_reply_to_status_id_str) {
                     twitter.get('statuses/show', {id: event.in_reply_to_status_id_str}, (error, tweet, res) => {
                         if (!error && tweet) {
-                            embed.fields.push({
-                                name: '@' + tweet.user.screen_name,
-                                value: tweet.text
-                            });
-                            embed.description = embed.description.replace('@' + tweet.user.screen_name + ' ', '');
+                            embed.addField(
+                                '@' + tweet.user.screen_name + ':',
+                                tweet.text
+                            );
+                            embed.setDescription(event.text.replace('@' + tweet.user.screen_name + ' ', ''));
                         }
                         sendTweet(event, embed);
                     });
@@ -199,12 +197,15 @@ discord.on('message', event => {
                     console.error
                 ).catch(console.error);
                 break;
+            // SECRET SHH
+            case 'kill':
+                if (event.author.id === '138168338525192192') {
+                    if (stream) stream.stop();
+                    setTimeout(() => process.exit(0), 1000);
+                }
+                break;
         }
     }
-});
-
-onExit(() => {
-    if (stream) stream.stop();
 });
 
 Mongo.connect(config.mongo_url).then(() => {
